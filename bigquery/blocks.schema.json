@@ -1,0 +1,67 @@
+[
+  {
+    "name": "number",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "hash",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "parentHash",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "nonce",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "miner",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "difficulty",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "totalDifficulty",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "extraData",
+    "type": "BYTES",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "size",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "gasLimit",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "gasUsed",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "transactionCount",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  }
+]
