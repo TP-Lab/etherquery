@@ -162,8 +162,6 @@ func (s *TransactionExporter) Export(block *types.Block) {
 			}
 		}
 
-		transactionList = append(transactionList, *transaction)
-
 		tracerType := "callTracer"
 		traceConfig := &eth.TraceConfig{
 			Tracer: &tracerType,
@@ -183,11 +181,19 @@ func (s *TransactionExporter) Export(block *types.Block) {
 				if err != nil {
 					log.Errorf("parse json %v error %v", string(rawMessage), err)
 				} else {
-					log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+					//标记当前交易是什么op code
+					if !jsonParsed.ExistsP("type") {
+						transaction.OpCode = jsonParsed.Path("type").String()
+					}
+					if jsonParsed.ExistsP("calls") {
+						log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+					}
 					s.ParseRawMessage("0", *transaction, block, tx, jsonParsed, transactionList)
 				}
 			}
 		}
+
+		transactionList = append(transactionList, *transaction)
 	}
 	//log.Infof("%v", transactionList)
 }
