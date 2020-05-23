@@ -1,0 +1,9 @@
+<seelog minlevel="info">
+  <outputs formatid="main">
+    <rollingfile type="date" filename="logs/console.log" datepattern="2006-02-01" maxrolls="168" />
+    <console />
+  </outputs>
+  <formats>
+    <format id="main" format="[%LEVEL] [%Date %Time] [%File:%Line] - %Msg%n"/>
+  </formats>
+</seelog>

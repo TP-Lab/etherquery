@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
 	"github.com/elastic/gosigar"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -22,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/les"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	cli "gopkg.in/urfave/cli.v1"
@@ -195,8 +195,7 @@ func init() {
 	app.Action = geth
 	app.HideVersion = true // we have a command to print the version
 	app.Copyright = "Copyright 2013-2020 The go-ethereum Authors"
-	app.Commands = []cli.Command{
-	}
+	app.Commands = []cli.Command{}
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	consoleFlags := []cli.Flag{utils.JSpathFlag, utils.ExecFlag, utils.PreloadJSFlag}
@@ -220,6 +219,16 @@ func init() {
 }
 
 func main() {
+	logger, err := log.LoggerFromConfigAsFile("logger.xml")
+	if err != nil {
+		log.Errorf("init logger from %s error: %v", "loger.xml", err)
+	} else {
+		if err := log.ReplaceLogger(logger); err != nil {
+			log.Errorf("replace logger error %v", err)
+		}
+	}
+	defer log.Flush()
+
 	if err := app.Run(os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
