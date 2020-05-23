@@ -12,8 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/params"
+	"math"
 	"math/big"
 	"strings"
+	"time"
 )
 
 type TransactionExporter struct {
@@ -21,7 +23,14 @@ type TransactionExporter struct {
 	ethereum *eth.Ethereum
 }
 
-func (s *TransactionExporter) ExportGenesis(block *types.Block, world state.Dump) {
+func NewTransactionExporter(ethereum *eth.Ethereum) *TransactionExporter {
+	return &TransactionExporter{
+		config:   ethereum.BlockChain().Config(),
+		ethereum: ethereum,
+	}
+}
+
+func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, world state.Dump) {
 	var result []Transaction
 	i := 0
 	for address, account := range world.Accounts {
@@ -58,11 +67,45 @@ func (s *TransactionExporter) ExportGenesis(block *types.Block, world state.Dump
 	//todo process result
 }
 
-func (s *TransactionExporter) Export(block *types.Block) {
-	if block == nil {
+func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
+	signer := types.MakeSigner(s.config, big.NewInt(math.MaxInt64))
+	message, err := tx.AsMessage(signer)
+	if err != nil {
+		log.Errorf("as message %v error %v", tx.Hash().String(), err)
 		return
 	}
-	if len(block.Transactions()) == 0 {
+	toAddress := tx.To()
+	var to string
+	if toAddress != nil {
+		to = toAddress.String()
+	}
+	//todo处理代币的情况
+	transaction := &Transaction{
+		Timestamp:        *big.NewInt(time.Now().Unix()), //pending状态还没有这个值
+		BlockNumber:      *big.NewInt(0),                 //pending状态还没有这个值
+		TokenValue:       *big.NewInt(0),
+		Value:            *tx.Value(),
+		Hash:             tx.Hash().String(),
+		Nonce:            fmt.Sprintf("%v", tx.Nonce()),
+		BlockHash:        "", //pending状态还没有这个值
+		TransactionIndex: *big.NewInt(int64(0)),
+		LogIndex:         *big.NewInt(-1),
+		InternalIndex:    "",
+		From:             message.From().String(),
+		To:               to,
+		AddrToken:        "",
+		TokenType:        TokenTypeDefault,
+		Input:            "", //todo
+		Gas:              *big.NewInt(int64(tx.Gas())),
+		GasPrice:         *tx.GasPrice(),
+		UsedGas:          *big.NewInt(int64(tx.Gas())),
+		Status:           TransactionStatusPending,
+	}
+	log.Info("pending tx %v", transaction.Hash)
+}
+
+func (s *TransactionExporter) ExportBlock(block *types.Block) {
+	if block == nil || len(block.Transactions()) == 0 {
 		return
 	}
 	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
@@ -188,7 +231,7 @@ func (s *TransactionExporter) Export(block *types.Block) {
 					if jsonParsed.ExistsP("calls") {
 						log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
 					}
-					s.ParseRawMessage("0", *transaction, block, tx, jsonParsed, transactionList)
+					s.parseRawMessage("0", *transaction, block, tx, jsonParsed, transactionList)
 				}
 			}
 		}
@@ -198,7 +241,7 @@ func (s *TransactionExporter) Export(block *types.Block) {
 	//log.Infof("%v", transactionList)
 }
 
-func (s *TransactionExporter) ParseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
+func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
 	if !jsonParsed.ExistsP("calls") {
 		return
 	}
@@ -245,6 +288,6 @@ func (s *TransactionExporter) ParseRawMessage(internalIndex string, parentTransa
 	children, _ := jsonParsed.S("calls").Children()
 	for i, child := range children {
 		newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
-		s.ParseRawMessage(newInternalIndex, transaction1, block, tx, child, transactionList)
+		s.parseRawMessage(newInternalIndex, transaction1, block, tx, child, transactionList)
 	}
 }
