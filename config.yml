@@ -1,0 +1,9 @@
+# 系统环境
+profile: dev
+
+blocksgoroutinesize: 6
+blockschannelsize: 256
+txschannelsize: 256
+chainheadeventchannelsize: 10
+newtxseventchannelsize: 10
+subscribeendpointlist: ['']

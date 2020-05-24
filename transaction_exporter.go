@@ -19,16 +19,18 @@ import (
 )
 
 type TransactionExporter struct {
-	config   *params.ChainConfig
-	ethereum *eth.Ethereum
-	saver    *MongoSaver
+	appConfig   *AppConfig
+	chainConfig *params.ChainConfig
+	ethereum    *eth.Ethereum
+	saver       *MongoSaver
 }
 
-func NewTransactionExporter(ethereum *eth.Ethereum) *TransactionExporter {
+func NewTransactionExporter(appConfig *AppConfig, ethereum *eth.Ethereum) *TransactionExporter {
 	return &TransactionExporter{
-		config:   ethereum.BlockChain().Config(),
-		ethereum: ethereum,
-		saver:    &MongoSaver{},
+		appConfig:   appConfig,
+		chainConfig: ethereum.BlockChain().Config(),
+		ethereum:    ethereum,
+		saver:       &MongoSaver{},
 	}
 }
 
@@ -67,7 +69,7 @@ func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump 
 }
 
 func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
-	signer := types.MakeSigner(s.config, big.NewInt(math.MaxInt64))
+	signer := types.MakeSigner(s.chainConfig, big.NewInt(math.MaxInt64))
 	message, err := tx.AsMessage(signer)
 	if err != nil {
 		log.Errorf("as message %v error %v", tx.Hash().String(), err)
@@ -136,7 +138,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 	}
 
 	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
-	signer := types.MakeSigner(s.config, block.Number())
+	signer := types.MakeSigner(s.chainConfig, block.Number())
 
 	var transactionList []Transaction
 	for i, tx := range block.Transactions() {
@@ -177,7 +179,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 		}
 		s.parseTransactionTokenInfo(&transaction, &receiptsList)
 		if len(receiptsList) > 0 {
-			err := receiptsList.DeriveFields(s.config, tx.Hash(), block.NumberU64(), []*types.Transaction{tx})
+			err := receiptsList.DeriveFields(s.chainConfig, tx.Hash(), block.NumberU64(), []*types.Transaction{tx})
 			if err != nil {
 				log.Errorf("derive fields error %v", err)
 				return

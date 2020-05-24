@@ -19,16 +19,16 @@ import (
 )
 
 type EtherQuery struct {
-	queryConfig       *QueryConfig
+	appConfig         *AppConfig
+	exporter          *TransactionExporter
 	customDatabase    ethdb.Database
 	ethereum          *eth.Ethereum
 	chainHeadEventSub event.Subscription
 	newTxEventSub     event.Subscription
 	server            *p2p.Server
-	exporter          *TransactionExporter
 }
 
-func New(config *QueryConfig, ctx *node.ServiceContext) (node.Service, error) {
+func NewEtherQuery(appConfig *AppConfig, ctx *node.ServiceContext) (node.Service, error) {
 	var ethereum *eth.Ethereum
 	if err := ctx.Service(&ethereum); err != nil {
 		return nil, err
@@ -38,8 +38,10 @@ func New(config *QueryConfig, ctx *node.ServiceContext) (node.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	exporter := NewTransactionExporter(appConfig, ethereum)
 	return &EtherQuery{
-		queryConfig:       config,
+		appConfig:         appConfig,
+		exporter:          exporter,
 		customDatabase:    db,
 		ethereum:          ethereum,
 		chainHeadEventSub: nil,
@@ -48,48 +50,49 @@ func New(config *QueryConfig, ctx *node.ServiceContext) (node.Service, error) {
 	}, nil
 }
 
-func (eq *EtherQuery) Protocols() []p2p.Protocol {
+func (s *EtherQuery) Protocols() []p2p.Protocol {
 	return []p2p.Protocol{}
 }
 
-func (eq *EtherQuery) APIs() []rpc.API {
+func (s *EtherQuery) APIs() []rpc.API {
 	return []rpc.API{}
 }
 
-func (eq *EtherQuery) processTxs(ch <-chan *types.Transaction) {
+func (s *EtherQuery) processTxs(ch <-chan *types.Transaction) {
 	for tx := range ch {
 		if tx == nil {
 			continue
 		}
-		eq.exporter.ExportPendingTx(tx)
+		s.exporter.ExportPendingTx(tx)
 	}
 }
 
-func (eq *EtherQuery) processBlocks(ch <-chan *types.Block) {
+func (s *EtherQuery) processBlocks(ch <-chan *types.Block) {
 	for block := range ch {
 		if block == nil {
 			continue
 		}
-		log.Infof("Processing Block %v @%v...", block.Number().Uint64(), time.Unix(int64(block.Time()), 0))
-		if block.Number().Uint64() == 0 {
-			root := eq.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
-			chainDb := eq.ethereum.BlockChain().StateCache()
-			snapshot := eq.ethereum.BlockChain().Snapshot()
+		blockNumber := block.Number()
+		log.Infof("Processing Block %v @%v...", blockNumber.Uint64(), time.Unix(int64(block.Time()), 0))
+		if blockNumber.Uint64() == 0 {
+			root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
+			chainDb := s.ethereum.BlockChain().StateCache()
+			snapshot := s.ethereum.BlockChain().Snapshot()
 			stateDB, err := state.New(root, chainDb, snapshot)
 			if err != nil {
 				log.Errorf("Failed to get state DB for genesis Block: %v", err)
 			}
 			world := stateDB.RawDump(false, false, true)
-			eq.exporter.ExportGenesisBlocks(block, world)
+			s.exporter.ExportGenesisBlocks(block, world)
 		} else {
-			eq.exporter.ExportBlock(block)
+			s.exporter.ExportBlock(block)
 		}
-		eq.putLastBlock(block.Number().Uint64())
+		s.putLastBlock(blockNumber.Uint64())
 	}
 }
 
-func (eq *EtherQuery) getInt(key string) (uint64, error) {
-	data, err := eq.customDatabase.Get([]byte(key))
+func (s *EtherQuery) getInt(key string) (uint64, error) {
+	data, err := s.customDatabase.Get([]byte(key))
 	if err != nil {
 		return 0, err
 	}
@@ -103,50 +106,49 @@ func (eq *EtherQuery) getInt(key string) (uint64, error) {
 	return value, nil
 }
 
-func (eq *EtherQuery) putInt(key string, value uint64) error {
+func (s *EtherQuery) putInt(key string, value uint64) error {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, value)
 	if err != nil {
 		return err
 	}
-	return eq.customDatabase.Put([]byte(key), buf.Bytes())
+	return s.customDatabase.Put([]byte(key), buf.Bytes())
 }
 
-func (eq *EtherQuery) getLastBlock() uint64 {
-	dataVersion, err := eq.getInt("dataVersion")
+func (s *EtherQuery) getLastBlock() uint64 {
+	dataVersion, err := s.getInt("dataVersion")
 	if err != nil {
 		log.Errorf("get data version error %v", err)
-		eq.putInt("dataVersion", DataVersion)
-		eq.putInt("lastBlock", 0)
+		s.putInt("dataVersion", DataVersion)
+		s.putInt("lastBlock", 0)
 		return 0
 	}
 	if dataVersion < DataVersion {
 		log.Warn("Obsolete dataVersion")
-		eq.putInt("dataVersion", DataVersion)
-		eq.putInt("lastBlock", 0)
+		s.putInt("dataVersion", DataVersion)
+		s.putInt("lastBlock", 0)
 		return 0
 	}
-	lastBlock, err := eq.getInt("lastBlock")
+	lastBlock, err := s.getInt("lastBlock")
 	if err != nil {
 		return 0
 	}
 	return lastBlock
 }
 
-func (eq *EtherQuery) putLastBlock(block uint64) {
-	eq.putInt("lastBlock", block)
+func (s *EtherQuery) putLastBlock(block uint64) {
+	s.putInt("lastBlock", block)
 }
 
-func (eq *EtherQuery) consumeBlocks() {
+func (s *EtherQuery) consumeBlocks() {
 	//可以跑多个
-	blocks := make(chan *types.Block, BlocksChannelSize)
-	go eq.processBlocks(blocks)
-	go eq.processBlocks(blocks)
-	go eq.processBlocks(blocks)
-	go eq.processBlocks(blocks)
+	blocks := make(chan *types.Block, s.appConfig.BlocksChannelSize)
+	for i := 0; i < int(s.appConfig.BlocksGoroutineSize); i++ {
+		go s.processBlocks(blocks)
+	}
 	//可以跑多个
-	txs := make(chan *types.Transaction, TxsChannelSize)
-	go eq.processTxs(txs)
+	txs := make(chan *types.Transaction, s.appConfig.TxsChannelSize)
+	go s.processTxs(txs)
 
 	go func() {
 		for {
@@ -156,8 +158,8 @@ func (eq *EtherQuery) consumeBlocks() {
 	}()
 	defer close(blocks)
 
-	chain := eq.ethereum.BlockChain()
-	lastBlock := eq.getLastBlock()
+	chain := s.ethereum.BlockChain()
+	lastBlock := s.getLastBlock()
 	log.Infof("last Block %v", lastBlock)
 	// First catch up
 	for lastBlock < chain.CurrentBlock().Number().Uint64() {
@@ -166,13 +168,13 @@ func (eq *EtherQuery) consumeBlocks() {
 	}
 
 	log.Info("Caught up; subscribing to new blocks.")
-	var headCh = make(chan core.ChainHeadEvent, ChainHeadEventChannelSize)
-	eq.chainHeadEventSub = eq.ethereum.BlockChain().SubscribeChainHeadEvent(headCh)
-	defer eq.chainHeadEventSub.Unsubscribe()
+	var headCh = make(chan core.ChainHeadEvent, s.appConfig.ChainHeadEventChannelSize)
+	s.chainHeadEventSub = s.ethereum.BlockChain().SubscribeChainHeadEvent(headCh)
+	defer s.chainHeadEventSub.Unsubscribe()
 
-	txEventCh := make(chan core.NewTxsEvent, NewTxsEventChannelSize)
-	eq.newTxEventSub = eq.ethereum.TxPool().SubscribeNewTxsEvent(txEventCh)
-	defer eq.newTxEventSub.Unsubscribe()
+	txEventCh := make(chan core.NewTxsEvent, s.appConfig.NewTxsEventChannelSize)
+	s.newTxEventSub = s.ethereum.TxPool().SubscribeNewTxsEvent(txEventCh)
+	defer s.newTxEventSub.Unsubscribe()
 
 HandleLoop:
 	for {
@@ -189,10 +191,10 @@ HandleLoop:
 			for _, tx := range transactions {
 				txs <- tx
 			}
-		case err := <-eq.chainHeadEventSub.Err():
+		case err := <-s.chainHeadEventSub.Err():
 			log.Errorf("chain head event receive error %v", err)
 			break HandleLoop
-		case err := <-eq.newTxEventSub.Err():
+		case err := <-s.newTxEventSub.Err():
 			log.Errorf("tx receive error %v", err)
 			break HandleLoop
 		}
@@ -200,24 +202,23 @@ HandleLoop:
 
 }
 
-func (eq *EtherQuery) Start(server *p2p.Server) error {
+func (s *EtherQuery) Start(server *p2p.Server) error {
 	log.Info("Starting ether query service.")
 
-	eq.server = server
-	eq.exporter = NewTransactionExporter(eq.ethereum)
+	s.server = server
 
-	go eq.consumeBlocks()
+	go s.consumeBlocks()
 
 	return nil
 }
 
-func (eq *EtherQuery) Stop() error {
+func (s *EtherQuery) Stop() error {
 	log.Info("Stopping ether query service.")
-	if eq.chainHeadEventSub != nil {
-		eq.chainHeadEventSub.Unsubscribe()
+	if s.chainHeadEventSub != nil {
+		s.chainHeadEventSub.Unsubscribe()
 	}
-	if eq.newTxEventSub != nil {
-		eq.newTxEventSub.Unsubscribe()
+	if s.newTxEventSub != nil {
+		s.newTxEventSub.Unsubscribe()
 	}
 	return nil
 }

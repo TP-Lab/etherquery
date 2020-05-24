@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/les"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/jinzhu/configor"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -326,7 +327,12 @@ func geth(ctx *cli.Context) error {
 func startNode(ctx *cli.Context, stack *node.Node) {
 	//debug.Memsize.Add("node", stack)
 
-	eqConfig := &QueryConfig{
+	var appConfig AppConfig
+	if err := configor.Load(&appConfig, "config.yml"); err != nil {
+		log.Criticalf("load config error: %v", err)
+		os.Exit(1)
+	}
+	appConfig.QueryConfig = &QueryConfig{
 		Project:       ctx.GlobalString("gcpproject"),
 		Dataset:       ctx.GlobalString("dataset"),
 		BatchInterval: time.Second * 15,
@@ -334,7 +340,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	}
 
 	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		return New(eqConfig, ctx)
+		return NewEtherQuery(&appConfig, ctx)
 	}); err != nil {
 		utils.Fatalf("Failed to register the ether query service: %v", err)
 	}
