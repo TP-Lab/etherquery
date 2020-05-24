@@ -275,7 +275,6 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 }
 
 func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
-	log.Infof("rawMessage %v, %v", tx.Hash().String(), internalIndex)
 	transaction := Transaction{
 		Timestamp:        *big.NewInt(int64(block.Time())),
 		BlockNumber:      *block.Number(),
