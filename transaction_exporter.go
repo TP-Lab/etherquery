@@ -21,19 +21,21 @@ import (
 type TransactionExporter struct {
 	config   *params.ChainConfig
 	ethereum *eth.Ethereum
+	saver    *MongoSaver
 }
 
 func NewTransactionExporter(ethereum *eth.Ethereum) *TransactionExporter {
 	return &TransactionExporter{
 		config:   ethereum.BlockChain().Config(),
 		ethereum: ethereum,
+		saver:    &MongoSaver{},
 	}
 }
 
-func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, world state.Dump) {
-	var result []Transaction
+func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump state.Dump) {
+	var transactionList []Transaction
 	i := 0
-	for address, account := range world.Accounts {
+	for address, account := range stateDump.Accounts {
 		balance, ok := new(big.Int).SetString(account.Balance, 10)
 		if !ok {
 			log.Errorf("could not decode balance %v of genesis account", account.Balance)
@@ -47,24 +49,21 @@ func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, world stat
 		transaction.UsedGas = *big.NewInt(0)
 		transaction.Value = *balance
 		transaction.Hash = common.Hash{}.String()
-		transaction.Nonce = fmt.Sprintf("%v", account.Nonce)
+		transaction.Nonce = account.Nonce
 		transaction.BlockHash = block.Hash().String()
 		transaction.TransactionIndex = *big.NewInt(int64(i))
-		transaction.LogIndex = *big.NewInt(0)
+		transaction.LogIndex = *LogIndexDefault
 		transaction.From = common.Address{}.String()
 		transaction.To = address.String()
-		transaction.AddrToken = ""
+		transaction.ContractAddress = ""
 		transaction.TokenType = TokenTypeDefault
-		transaction.Input = ""
+		transaction.Data = nil
 		transaction.Status = TransactionStatusSuccess
 
-		result = append(result, transaction)
-
-		marshal, _ := json.Marshal(transaction)
-		fmt.Println(string(marshal))
+		transactionList = append(transactionList, transaction)
 		i += 1
 	}
-	//todo process result
+	s.saver.SaveTransactionList(transactionList)
 }
 
 func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
@@ -79,40 +78,68 @@ func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
 	if toAddress != nil {
 		to = toAddress.String()
 	}
-	//todo处理代币的情况
-	transaction := &Transaction{
+	transaction := Transaction{
 		Timestamp:        *big.NewInt(time.Now().Unix()), //pending状态还没有这个值
 		BlockNumber:      *big.NewInt(0),                 //pending状态还没有这个值
 		TokenValue:       *big.NewInt(0),
 		Value:            *tx.Value(),
 		Hash:             tx.Hash().String(),
-		Nonce:            fmt.Sprintf("%v", tx.Nonce()),
+		Nonce:            tx.Nonce(),
 		BlockHash:        "", //pending状态还没有这个值
 		TransactionIndex: *big.NewInt(int64(0)),
-		LogIndex:         *big.NewInt(-1),
-		InternalIndex:    "",
+		LogIndex:         *LogIndexDefault,
+		InternalIndex:    InternalIndexDefault,
 		From:             message.From().String(),
 		To:               to,
-		AddrToken:        "",
+		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
-		Input:            "", //todo
+		Data:             tx.Data(),
 		Gas:              *big.NewInt(int64(tx.Gas())),
 		GasPrice:         *tx.GasPrice(),
 		UsedGas:          *big.NewInt(int64(tx.Gas())),
 		Status:           TransactionStatusPending,
 	}
-	log.Info("pending tx %v", transaction.Hash)
+	s.parseTransactionTokenInfo(&transaction, nil)
+
+	s.saver.SaveTransactionList([]Transaction{transaction})
+}
+
+func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction, receipt *types.Receipts) *Transaction {
+	if transaction.Data == nil {
+		return transaction
+	}
+	input := transaction.Data
+	// Function: transfer(address _to, uint256 _value)
+	// MethodID: 0xa9059cbb
+	// 0xa9059cbb000000000000000000000000
+	// [0]:00000000000000000000000075186ece18d7051afb9c1aee85170c0deda23d82
+	// [1]:0000000000000000000000000000000000000000000000364db9fbe6a7902000
+	if len(input) > 74 && string(input[:10]) == "0xa9059cbb" {
+		//tx.MethodId = string(input[:10])
+		if receipt != nil {
+			if len(*receipt) > 0 {
+				contractAddress := (*receipt)[0].ContractAddress
+				log.Infof("hash %v, to %v, contract address %v", transaction.Hash, transaction.To, contractAddress)
+			}
+		}
+		transaction.ContractAddress = transaction.To
+		transaction.To = string(append([]byte{'0', 'x'}, input[34:74]...))
+		transaction.TokenValue.UnmarshalJSON(append([]byte{'0', 'x'}, input[74:]...))
+		transaction.TokenType = TokenTypeToken
+	}
+	return transaction
 }
 
 func (s *TransactionExporter) ExportBlock(block *types.Block) {
 	if block == nil || len(block.Transactions()) == 0 {
 		return
 	}
+
 	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
+	signer := types.MakeSigner(s.config, block.Number())
 
 	var transactionList []Transaction
 	for i, tx := range block.Transactions() {
-		signer := types.MakeSigner(s.config, block.Number())
 		message, err := tx.AsMessage(signer)
 		if err != nil {
 			log.Errorf("as message %v error %v", tx.Hash().String(), err)
@@ -123,22 +150,22 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 		if toAddress != nil {
 			to = toAddress.String()
 		}
-		transaction := &Transaction{
+		transaction := Transaction{
 			Timestamp:        *big.NewInt(int64(block.Time())),
 			BlockNumber:      *block.Number(),
 			TokenValue:       *big.NewInt(0),
 			Value:            *tx.Value(),
 			Hash:             tx.Hash().String(),
-			Nonce:            fmt.Sprintf("%v", tx.Nonce()),
+			Nonce:            tx.Nonce(),
 			BlockHash:        block.Hash().String(),
 			TransactionIndex: *big.NewInt(int64(i)),
-			LogIndex:         *big.NewInt(-1),
-			InternalIndex:    "",
+			LogIndex:         *LogIndexDefault,
+			InternalIndex:    InternalIndexDefault,
 			From:             message.From().String(),
 			To:               to,
-			AddrToken:        "",
+			ContractAddress:  "",
 			TokenType:        TokenTypeDefault,
-			Input:            "", //todo
+			Data:             tx.Data(),
 			Gas:              *big.NewInt(int64(tx.Gas())),
 			GasPrice:         *tx.GasPrice(),
 			UsedGas:          *big.NewInt(int64(tx.Gas())),
@@ -148,6 +175,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 		if err != nil {
 			log.Errorf("get receipts by %v error %v", tx.Hash().String(), err)
 		}
+		s.parseTransactionTokenInfo(&transaction, &receiptsList)
 		if len(receiptsList) > 0 {
 			err := receiptsList.DeriveFields(s.config, tx.Hash(), block.NumberU64(), []*types.Transaction{tx})
 			if err != nil {
@@ -172,11 +200,11 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 					}
 					transaction1 := &Transaction{
 						Timestamp: *big.NewInt(int64(block.Time())),
-						Gas:       *big.NewInt(int64(tx.Gas())),
+						Gas:       *big.NewInt(int64(receipt.CumulativeGasUsed)),
 						GasPrice:  *tx.GasPrice(),
-						UsedGas:   *big.NewInt(int64(tx.Gas())),
+						UsedGas:   *big.NewInt(int64(receipt.GasUsed)),
 						Hash:      tx.Hash().String(),
-						Nonce:     fmt.Sprintf("%v", tx.Nonce()),
+						Nonce:     tx.Nonce(),
 						From:      message.From().String(),
 						To:        to,
 						Status:    receipt.Status,
@@ -191,13 +219,13 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 					if !strings.HasPrefix(transaction1.To, "0x") {
 						transaction1.To = "0x" + transaction1.To
 					}
-					transaction1.AddrToken = log1.Address.String()
+					transaction1.ContractAddress = log1.Address.String()
 					transaction1.TokenType = TokenTypeToken
 					transaction1.BlockHash = log1.BlockHash.String()
 					transaction1.BlockNumber = *big.NewInt(int64(log1.BlockNumber))
 					transaction1.TransactionIndex = *big.NewInt(int64(log1.TxIndex))
 					transaction1.LogIndex = *big.NewInt(int64(log1.Index))
-					transaction1.InternalIndex = ""
+					transaction1.InternalIndex = InternalIndexDefault
 					transaction1.TokenValue.UnmarshalJSON(log1.Data)
 
 					transactionList = append(transactionList, *transaction1)
@@ -230,64 +258,68 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 					}
 					if jsonParsed.ExistsP("calls") {
 						log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+						internalIndex := transaction.InternalIndex
+						children, _ := jsonParsed.S("calls").Children()
+						for i, child := range children {
+							newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
+							s.parseRawMessage(newInternalIndex, transaction, block, tx, child, transactionList)
+						}
 					}
-					s.parseRawMessage("0", *transaction, block, tx, jsonParsed, transactionList)
 				}
 			}
 		}
 
-		transactionList = append(transactionList, *transaction)
+		transactionList = append(transactionList, transaction)
 	}
-	//log.Infof("%v", transactionList)
+	s.saver.SaveTransactionList(transactionList)
 }
 
 func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
-	if !jsonParsed.ExistsP("calls") {
-		return
-	}
 	log.Infof("rawMessage %v, %v", tx.Hash().String(), internalIndex)
-	transaction1 := Transaction{
+	transaction := Transaction{
 		Timestamp:        *big.NewInt(int64(block.Time())),
 		BlockNumber:      *block.Number(),
 		Hash:             tx.Hash().String(),
-		Nonce:            fmt.Sprintf("%v", tx.Nonce()),
+		Nonce:            tx.Nonce(),
 		BlockHash:        block.Hash().String(),
 		TransactionIndex: parentTransaction.TransactionIndex,
-		LogIndex:         *big.NewInt(-1),
+		LogIndex:         parentTransaction.LogIndex,
 		TokenType:        TokenTypeDefault,
 		GasPrice:         *tx.GasPrice(),
 		Status:           parentTransaction.Status,
 	}
-	transaction1.From = jsonParsed.Path("from").String()
-	transaction1.To = jsonParsed.Path("to").String()
-	transaction1.OpCode = jsonParsed.Path("type").String()
+	transaction.From = jsonParsed.Path("from").String()
+	transaction.To = jsonParsed.Path("to").String()
+	transaction.OpCode = jsonParsed.Path("type").String()
 	valueData := jsonParsed.Path("value").Data()
 	if valueData != nil {
-		transaction1.Value.UnmarshalJSON([]byte(valueData.(string)))
+		transaction.Value.UnmarshalJSON([]byte(valueData.(string)))
 	}
 	gasData := jsonParsed.Path("gas").Data()
 	if gasData != nil {
-		transaction1.Gas.UnmarshalJSON([]byte(gasData.(string)))
+		transaction.Gas.UnmarshalJSON([]byte(gasData.(string)))
 	}
 	gasUsedData := jsonParsed.Path("gasUsed").Data()
 	if gasUsedData != nil {
-		transaction1.UsedGas.UnmarshalJSON([]byte(gasUsedData.(string)))
+		transaction.UsedGas.UnmarshalJSON([]byte(gasUsedData.(string)))
 	}
-	transaction1.Input = jsonParsed.Path("input").String()
+	transaction.Data = jsonParsed.Path("input").Bytes()
 
 	if jsonParsed.Exists("error") {
-		transaction1.Err = jsonParsed.Path("error").String()
-		if transaction1.Err != "" {
-			transaction1.Status = TransactionStatusFailed
+		transaction.Err = jsonParsed.Path("error").String()
+		if transaction.Err != "" {
+			transaction.Status = TransactionStatusFailed
 		}
 	}
-	transaction1.InternalIndex = internalIndex
+	transaction.InternalIndex = internalIndex
 
-	transactionList = append(transactionList, transaction1)
+	transactionList = append(transactionList, transaction)
 
-	children, _ := jsonParsed.S("calls").Children()
-	for i, child := range children {
-		newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
-		s.parseRawMessage(newInternalIndex, transaction1, block, tx, child, transactionList)
+	if jsonParsed.ExistsP("calls") {
+		children, _ := jsonParsed.S("calls").Children()
+		for i, child := range children {
+			newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
+			s.parseRawMessage(newInternalIndex, transaction, block, tx, child, transactionList)
+		}
 	}
 }
