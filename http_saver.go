@@ -14,11 +14,28 @@ type HttpSaver struct {
 }
 
 func (s *HttpSaver) SaveTransactionList(transactionList []Transaction) (int64, error) {
+	var batchTransactionList []Transaction
+	var resize uint64 = s.appConfig.BatchSize
 	for _, transaction := range transactionList {
-		marshal, _ := json.Marshal(transaction)
-		log.Debugf("%v", string(marshal))
+		if resize == 0 {
+			for _, endpoint := range s.appConfig.SubscribeEndpointList {
+				s.PostTransactionList(endpoint, batchTransactionList)
+			}
+			//reset
+			batchTransactionList = nil
+			resize = s.appConfig.BatchSize
+		}
+
+		batchTransactionList = append(batchTransactionList, transaction)
+		resize--
 	}
-	return 0, nil
+	//process transaction list left
+	if len(batchTransactionList) > 0 {
+		for _, endpoint := range s.appConfig.SubscribeEndpointList {
+			s.PostTransactionList(endpoint, batchTransactionList)
+		}
+	}
+	return int64(len(transactionList)), nil
 }
 
 func (s *HttpSaver) PostTransactionList(endpoint string, transactionList []Transaction) (int64, error) {

@@ -333,12 +333,6 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		log.Criticalf("load config error: %v", err)
 		os.Exit(1)
 	}
-	appConfig.QueryConfig = &QueryConfig{
-		Project:       ctx.GlobalString("gcpproject"),
-		Dataset:       ctx.GlobalString("dataset"),
-		BatchInterval: time.Second * 15,
-		BatchSize:     500,
-	}
 	marshal, _ := json.Marshal(appConfig)
 	log.Infof("app config %v", string(marshal))
 
