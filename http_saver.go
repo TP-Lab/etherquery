@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
+	"github.com/golang/snappy"
 	"github.com/parnurzeal/gorequest"
 	"time"
 )
 
 type HttpSaver struct {
 	appConfig *AppConfig
+	compress  bool
 }
 
 func (s *HttpSaver) SaveTransactionList(transactionList []Transaction) (int64, error) {
@@ -20,7 +22,17 @@ func (s *HttpSaver) SaveTransactionList(transactionList []Transaction) (int64, e
 }
 
 func (s *HttpSaver) PostTransactionList(endpoint string, transactionList []Transaction) (int64, error) {
-	resp, body, errs := gorequest.New().Timeout(time.Second * 10).Post(endpoint).Type("json").SendStruct(transactionList).End()
+	marshal, _ := json.Marshal(transactionList)
+	if s.compress {
+		marshal = snappy.Encode(nil, marshal)
+	}
+
+	resp, body, errs := gorequest.New().
+		Timeout(time.Second * 10).
+		Post(endpoint).
+		Type("text").
+		SendString(string(marshal)).
+		End()
 	if errs != nil && len(errs) > 0 && errs[0] != nil {
 		var err error
 		for _, err = range errs {
@@ -31,7 +43,7 @@ func (s *HttpSaver) PostTransactionList(endpoint string, transactionList []Trans
 		log.Errorf("request %v invalid, url %v, body %v", transactionList, endpoint, body)
 		return -1, nil
 	}
-	log.Debugf("request %v body %v", transactionList, body)
+	log.Debugf("request %v response body %v", endpoint, body)
 	type Result struct {
 		Result  int64  `json:"result"`
 		Message string `json:"message"`

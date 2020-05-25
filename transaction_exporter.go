@@ -243,6 +243,8 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 				DisableStack:   false,
 				DisableStorage: false,
 			},
+			Timeout: &s.appConfig.Timeout,
+			Reexec:  &s.appConfig.Reexec,
 		}
 		rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
 		if err != nil {

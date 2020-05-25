@@ -9,6 +9,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20200426045556-49ad98f6dac1 // indirect
 	github.com/ethereum/go-ethereum v1.9.14
 	github.com/golang/protobuf v1.3.5 // indirect
+	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/jinzhu/configor v1.2.0
 	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416

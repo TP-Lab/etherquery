@@ -1,6 +1,9 @@
 package main
 
-import "math/big"
+import (
+	"encoding/json"
+	"math/big"
+)
 
 type Transaction struct {
 	Timestamp        big.Int `json:"timestamp"`         // 交易时间
@@ -24,4 +27,9 @@ type Transaction struct {
 	Data             []byte  `json:"data"`
 	Err              string  `json:"err"`    //如果出错　显示错误信息
 	Status           uint64  `json:"status"` //1 (success) or 0 (failure) or 2(pending), 99未知
+}
+
+func (s Transaction) String() string {
+	marshal, _ := json.Marshal(s)
+	return string(marshal)
 }

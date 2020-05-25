@@ -1,9 +1,11 @@
 # 系统环境
 profile: dev
 
-blocksgoroutinesize: 6
+blocksgoroutinesize: 2
 blockschannelsize: 256
 txschannelsize: 256
 chainheadeventchannelsize: 10
 newtxseventchannelsize: 10
 subscribeendpointlist: ['']
+timeout: '10s'
+reexec: 128

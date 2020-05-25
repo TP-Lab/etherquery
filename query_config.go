@@ -18,4 +18,6 @@ type AppConfig struct {
 	ChainHeadEventChannelSize int64        `json:"chain_head_event_channel_size"`
 	NewTxsEventChannelSize    int64        `json:"new_txs_event_channel_size"`
 	SubscribeEndpointList     []string     `json:"subscribe_endpoint_list"`
+	Timeout                   string       `json:"timeout"`
+	Reexec                    uint64       `json:"reexec"`
 }
