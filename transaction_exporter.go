@@ -22,15 +22,29 @@ type TransactionExporter struct {
 	appConfig   *AppConfig
 	chainConfig *params.ChainConfig
 	ethereum    *eth.Ethereum
-	saver       *MongoSaver
+	saver       Saver
 }
 
 func NewTransactionExporter(appConfig *AppConfig, ethereum *eth.Ethereum) *TransactionExporter {
+	var saver Saver = &MongoSaver{}
+	if appConfig.Saver == "mongo" {
+		saver = &MongoSaver{
+			appConfig: appConfig,
+		}
+	} else if appConfig.Saver == "http" {
+		saver = &HttpSaver{
+			appConfig: appConfig,
+		}
+	} else {
+		saver = &DummySaver{
+			appConfig: appConfig,
+		}
+	}
 	return &TransactionExporter{
 		appConfig:   appConfig,
 		chainConfig: ethereum.BlockChain().Config(),
 		ethereum:    ethereum,
-		saver:       &MongoSaver{},
+		saver:       saver,
 	}
 }
 
@@ -291,33 +305,35 @@ func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransa
 		GasPrice:         *tx.GasPrice(),
 		Status:           parentTransaction.Status,
 	}
-	transaction.From = jsonParsed.Path("from").String()
-	transaction.To = jsonParsed.Path("to").String()
-	transaction.OpCode = jsonParsed.Path("type").String()
 	valueData := jsonParsed.Path("value").Data()
 	if valueData != nil {
 		transaction.Value.UnmarshalJSON([]byte(valueData.(string)))
 	}
-	gasData := jsonParsed.Path("gas").Data()
-	if gasData != nil {
-		transaction.Gas.UnmarshalJSON([]byte(gasData.(string)))
-	}
-	gasUsedData := jsonParsed.Path("gasUsed").Data()
-	if gasUsedData != nil {
-		transaction.UsedGas.UnmarshalJSON([]byte(gasUsedData.(string)))
-	}
-	transaction.Data = jsonParsed.Path("input").Bytes()
-
-	if jsonParsed.Exists("error") {
-		transaction.Err = jsonParsed.Path("error").String()
-		if transaction.Err != "" {
-			transaction.Status = TransactionStatusFailed
+	//丢弃value=0的合约调用
+	if transaction.Value.Uint64() > 0 {
+		transaction.From = jsonParsed.Path("from").String()
+		transaction.To = jsonParsed.Path("to").String()
+		transaction.OpCode = jsonParsed.Path("type").String()
+		gasData := jsonParsed.Path("gas").Data()
+		if gasData != nil {
+			transaction.Gas.UnmarshalJSON([]byte(gasData.(string)))
 		}
+		gasUsedData := jsonParsed.Path("gasUsed").Data()
+		if gasUsedData != nil {
+			transaction.UsedGas.UnmarshalJSON([]byte(gasUsedData.(string)))
+		}
+		transaction.Data = jsonParsed.Path("input").Bytes()
+
+		if jsonParsed.Exists("error") {
+			transaction.Err = jsonParsed.Path("error").String()
+			if transaction.Err != "" {
+				transaction.Status = TransactionStatusFailed
+			}
+		}
+		transaction.InternalIndex = internalIndex
+
+		transactionList = append(transactionList, transaction)
 	}
-	transaction.InternalIndex = internalIndex
-
-	transactionList = append(transactionList, transaction)
-
 	if jsonParsed.ExistsP("calls") {
 		children, _ := jsonParsed.S("calls").Children()
 		for i, child := range children {

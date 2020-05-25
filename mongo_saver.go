@@ -1,17 +1,10 @@
 package main
 
-import (
-	"encoding/json"
-	log "github.com/cihub/seelog"
-)
-
 type MongoSaver struct {
+	appConfig *AppConfig
 }
 
 func (s *MongoSaver) SaveTransactionList(transactionList []Transaction) (int64, error) {
-	for _, transaction := range transactionList {
-		marshal, _ := json.Marshal(transaction)
-		log.Debugf("%v", string(marshal))
-	}
+	//todo add logic
 	return 0, nil
 }

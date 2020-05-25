@@ -20,4 +20,5 @@ type AppConfig struct {
 	SubscribeEndpointList     []string     `json:"subscribe_endpoint_list"`
 	Timeout                   string       `json:"timeout"`
 	Reexec                    uint64       `json:"reexec"`
+	Saver                     string       `json:"saver"`
 }

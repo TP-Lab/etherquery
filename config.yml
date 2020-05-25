@@ -9,3 +9,5 @@ newtxseventchannelsize: 10
 subscribeendpointlist: ['']
 timeout: '10s'
 reexec: 128
+# dummy, http, mongo
+saver: 'dummy'
