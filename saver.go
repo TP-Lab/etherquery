@@ -11,12 +11,14 @@ type Saver interface {
 
 type DummySaver struct {
 	appConfig *AppConfig
+	done      bool
 }
 
 func (s *DummySaver) SaveTransactionList(transactionList []Transaction) (int64, error) {
-	for _, transaction := range transactionList {
-		marshal, _ := json.Marshal(transaction)
-		log.Debugf("%v", string(marshal))
+	if !s.done && len(transactionList) == 11 {
+		marshal, _ := json.Marshal(transactionList)
+		log.Infof("%v", string(marshal))
+		s.done = true
 	}
 	return int64(len(transactionList)), nil
 }
