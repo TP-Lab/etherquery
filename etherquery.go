@@ -72,9 +72,9 @@ func (s *EtherQuery) processBlocks(ch <-chan *types.Block) {
 		if block == nil {
 			continue
 		}
-		blockNumber := block.Number()
-		log.Infof("Processing Block %v @%v...", blockNumber.Uint64(), time.Unix(int64(block.Time()), 0))
-		if blockNumber.Uint64() == 0 {
+		blockNumber := block.Number().Uint64()
+		log.Infof("Processing Block %v @%v...", blockNumber, time.Unix(int64(block.Time()), 0))
+		if blockNumber == 0 {
 			root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
 			chainDb := s.ethereum.BlockChain().StateCache()
 			snapshot := s.ethereum.BlockChain().Snapshot()
@@ -87,7 +87,7 @@ func (s *EtherQuery) processBlocks(ch <-chan *types.Block) {
 		} else {
 			s.exporter.ExportBlock(block)
 		}
-		s.putLastBlock(blockNumber.Uint64())
+		s.putLastBlock(blockNumber)
 	}
 }
 

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -338,6 +339,8 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		BatchInterval: time.Second * 15,
 		BatchSize:     500,
 	}
+	marshal, _ := json.Marshal(appConfig)
+	log.Infof("app config %v", string(marshal))
 
 	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 		return NewEtherQuery(&appConfig, ctx)
