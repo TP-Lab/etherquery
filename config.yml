@@ -6,8 +6,10 @@ blockschannelsize: 64
 txschannelsize: 64
 chainheadeventchannelsize: 10
 newtxseventchannelsize: 10
-subscribeendpointlist: ['']
 timeout: '10s'
 reexec: 128
 # dummy, http, mongo
 saver: 'dummy'
+#saver: 'http'
+subscribeendpointlist: ['http://ethexp.tokenpocket.pro:8892']
+batchsize: 12
