@@ -67,13 +67,13 @@ func (s *EtherQuery) processTxs(ch <-chan *types.Transaction) {
 	}
 }
 
-func (s *EtherQuery) processBlocks(ch <-chan *types.Block) {
+func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 	for block := range ch {
 		if block == nil {
 			continue
 		}
 		blockNumber := block.Number().Uint64()
-		log.Infof("Processing Block %v @%v...", blockNumber, time.Unix(int64(block.Time()), 0))
+		log.Infof("index %v Processing Block %v @%v...", index, blockNumber, time.Unix(int64(block.Time()), 0))
 		if blockNumber == 0 {
 			root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
 			chainDb := s.ethereum.BlockChain().StateCache()
@@ -144,7 +144,7 @@ func (s *EtherQuery) consumeBlocks() {
 	//可以跑多个
 	blocks := make(chan *types.Block, s.appConfig.BlocksChannelSize)
 	for i := 0; i < int(s.appConfig.BlocksGoroutineSize); i++ {
-		go s.processBlocks(blocks)
+		go s.processBlocks(int64(i), blocks)
 	}
 	//可以跑多个
 	txs := make(chan *types.Transaction, s.appConfig.TxsChannelSize)
