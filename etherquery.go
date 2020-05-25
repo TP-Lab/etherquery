@@ -72,22 +72,26 @@ func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 		if block == nil {
 			continue
 		}
-		blockNumber := block.Number().Uint64()
-		log.Infof("index %v Processing Block %v @%v...", index, blockNumber, time.Unix(int64(block.Time()), 0))
-		if blockNumber == 0 {
-			root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
-			chainDb := s.ethereum.BlockChain().StateCache()
-			snapshot := s.ethereum.BlockChain().Snapshot()
-			stateDB, err := state.New(root, chainDb, snapshot)
-			if err != nil {
-				log.Errorf("Failed to get state DB for genesis Block: %v", err)
+		startTime := time.Now().UnixNano()
+		func() {
+			var effects int64 = 0
+			blockNumber := block.Number().Uint64()
+			if blockNumber == 0 {
+				root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
+				chainDb := s.ethereum.BlockChain().StateCache()
+				snapshot := s.ethereum.BlockChain().Snapshot()
+				stateDB, err := state.New(root, chainDb, snapshot)
+				if err != nil {
+					log.Errorf("Failed to get state DB for genesis Block: %v", err)
+				}
+				world := stateDB.RawDump(false, false, true)
+				effects, _ = s.exporter.ExportGenesisBlocks(block, world)
+			} else {
+				effects, _ = s.exporter.ExportBlock(block)
 			}
-			world := stateDB.RawDump(false, false, true)
-			s.exporter.ExportGenesisBlocks(block, world)
-		} else {
-			s.exporter.ExportBlock(block)
-		}
-		s.putLastBlock(blockNumber)
+			log.Infof("index %v Processing Block %v, effects %v, %vms @%v...", index, blockNumber, (time.Now().UnixNano()-startTime)/10e6, effects, time.Unix(int64(block.Time()), 0))
+		}()
+		s.putLastBlock(block.Number().Uint64())
 	}
 }
 

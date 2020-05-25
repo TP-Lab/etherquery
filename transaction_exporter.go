@@ -48,7 +48,7 @@ func NewTransactionExporter(appConfig *AppConfig, ethereum *eth.Ethereum) *Trans
 	}
 }
 
-func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump state.Dump) {
+func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump state.Dump) (int64, error) {
 	var transactionList []Transaction
 	i := 0
 	for address, account := range stateDump.Accounts {
@@ -79,15 +79,15 @@ func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump 
 		transactionList = append(transactionList, transaction)
 		i += 1
 	}
-	s.saver.SaveTransactionList(transactionList)
+	return s.saver.SaveTransactionList(transactionList)
 }
 
-func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
+func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, error) {
 	signer := types.MakeSigner(s.chainConfig, big.NewInt(math.MaxInt64))
 	message, err := tx.AsMessage(signer)
 	if err != nil {
 		log.Errorf("as message %v error %v", tx.Hash().String(), err)
-		return
+		return -1, err
 	}
 	toAddress := tx.To()
 	var to string
@@ -117,7 +117,7 @@ func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) {
 	}
 	s.parseTransactionTokenInfo(&transaction, nil)
 
-	s.saver.SaveTransactionList([]Transaction{transaction})
+	return s.saver.SaveTransactionList([]Transaction{transaction})
 }
 
 func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction, receipt *types.Receipts) *Transaction {
@@ -146,9 +146,9 @@ func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction
 	return transaction
 }
 
-func (s *TransactionExporter) ExportBlock(block *types.Block) {
+func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 	if block == nil || len(block.Transactions()) == 0 {
-		return
+		return 0, nil
 	}
 
 	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
@@ -159,7 +159,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 		message, err := tx.AsMessage(signer)
 		if err != nil {
 			log.Errorf("as message %v error %v", tx.Hash().String(), err)
-			return
+			return -1, err
 		}
 		toAddress := tx.To()
 		var to string
@@ -196,7 +196,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 			err := receiptsList.DeriveFields(s.chainConfig, tx.Hash(), block.NumberU64(), []*types.Transaction{tx})
 			if err != nil {
 				log.Errorf("derive fields error %v", err)
-				return
+				return -1, err
 			}
 			marshal1, _ := json.Marshal(receiptsList)
 			log.Infof("receiptsList %v, %v", tx.Hash().String(), string(marshal1))
@@ -289,7 +289,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) {
 
 		transactionList = append(transactionList, transaction)
 	}
-	s.saver.SaveTransactionList(transactionList)
+	return s.saver.SaveTransactionList(transactionList)
 }
 
 func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {

@@ -2,8 +2,8 @@
 profile: dev
 
 blocksgoroutinesize: 6
-blockschannelsize: 64
-txschannelsize: 64
+blockschannelsize: 32
+txschannelsize: 32
 chainheadeventchannelsize: 10
 newtxseventchannelsize: 10
 timeout: '10s'
