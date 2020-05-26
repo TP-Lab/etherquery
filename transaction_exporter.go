@@ -258,7 +258,18 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 			Timeout: &s.appConfig.Timeout,
 			Reexec:  &s.appConfig.Reexec,
 		}
-		rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
+
+		var rawMessageInterface interface{}
+		func() {
+			startTime := time.Now().UnixNano()
+			defer func() {
+				elapse := (time.Now().UnixNano() - startTime) / 10e6
+				if elapse > 500 {
+					log.Infof("trace transaction %v elapse time %vms", tx.Hash(), elapse)
+				}
+			}()
+			rawMessageInterface, err = privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
+		}()
 		if err != nil {
 			log.Errorf("trace transaction %v error %v", tx.Hash().String(), err)
 			//设置超时状态
