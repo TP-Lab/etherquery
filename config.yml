@@ -6,7 +6,7 @@ blockschannelsize: 32
 txschannelsize: 32
 chainheadeventchannelsize: 10
 newtxseventchannelsize: 10
-timeout: '10s'
+timeout: '5s'
 reexec: 128
 # dummy, http, mongo
 saver: 'dummy'

@@ -132,13 +132,16 @@ func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction
 	// [1]:0000000000000000000000000000000000000000000000364db9fbe6a7902000
 	if len(input) > 74 && string(input[:10]) == "0xa9059cbb" {
 		//tx.MethodId = string(input[:10])
+		transaction.ContractAddress = transaction.To
 		if receipt != nil {
 			if len(*receipt) > 0 {
-				contractAddress := (*receipt)[0].ContractAddress
-				log.Infof("hash %v, to %v, contract address %v", transaction.Hash, transaction.To, contractAddress)
+				contractAddress := (*receipt)[0].ContractAddress.String()
+				if contractAddress != transaction.ContractAddress {
+					transaction.ContractAddress = contractAddress
+					log.Warnf("transaction %v, to %v not equal contract address of receipt %v", transaction.Hash, transaction.To, contractAddress)
+				}
 			}
 		}
-		transaction.ContractAddress = transaction.To
 		transaction.To = string(append([]byte{'0', 'x'}, input[34:74]...))
 		transaction.TokenValue.UnmarshalJSON(append([]byte{'0', 'x'}, input[74:]...))
 		transaction.TokenType = TokenTypeToken
@@ -151,6 +154,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		return 0, nil
 	}
 
+	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
 	signer := types.MakeSigner(s.chainConfig, block.Number())
 
 	var transactionList []Transaction
@@ -248,7 +252,18 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 			}
 		}
 
-		rawMessageInterface, err := s.traceTransaction(tx)
+		tracerType := "callTracer"
+		traceConfig := &eth.TraceConfig{
+			Tracer: &tracerType,
+			LogConfig: &vm.LogConfig{
+				DisableMemory:  false,
+				DisableStack:   false,
+				DisableStorage: false,
+			},
+			Timeout: &s.appConfig.Timeout,
+			Reexec:  &s.appConfig.Reexec,
+		}
+		rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
 		if err != nil {
 			log.Errorf("trace transaction %v error %v", tx.Hash().String(), err)
 		} else {
@@ -278,28 +293,6 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		transactionList = append(transactionList, transaction)
 	}
 	return s.saver.SaveTransactionList(transactionList)
-}
-
-func (s *TransactionExporter) traceTransaction(tx *types.Transaction) (interface{}, error) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println("捕获异常:", err)
-		}
-	}()
-	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
-	tracerType := "callTracer"
-	traceConfig := &eth.TraceConfig{
-		Tracer: &tracerType,
-		LogConfig: &vm.LogConfig{
-			DisableMemory:  false,
-			DisableStack:   false,
-			DisableStorage: false,
-		},
-		Timeout: &s.appConfig.Timeout,
-		Reexec:  &s.appConfig.Reexec,
-	}
-	rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
-	return rawMessageInterface, err
 }
 
 func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
