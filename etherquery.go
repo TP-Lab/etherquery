@@ -68,13 +68,14 @@ func (s *EtherQuery) processTxs(ch <-chan *types.Transaction) {
 }
 
 func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
-	for block := range ch {
-		if block == nil {
-			continue
-		}
-		startTime := time.Now().UnixNano()
-		func() {
+	for {
+		select {
+		case block := <-ch:
+			if block == nil {
+				continue
+			}
 			var effects int64 = 0
+			var startTime = time.Now().UnixNano()
 			blockNumber := block.Number().Uint64()
 			if blockNumber == 0 {
 				root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
@@ -89,9 +90,11 @@ func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 			} else {
 				effects, _ = s.exporter.ExportBlock(block)
 			}
-			log.Infof("index %v Processing Block %v, effects %v, %vms @%v...", index, blockNumber, (time.Now().UnixNano()-startTime)/10e6, effects, time.Unix(int64(block.Time()), 0))
-		}()
-		s.putLastBlock(block.Number().Uint64())
+			log.Infof("goroutine %v processing Block %v, effects %v, %vms @%v...", index, blockNumber, (time.Now().UnixNano()-startTime)/10e6, effects, time.Unix(int64(block.Time()), 0))
+			s.putLastBlock(blockNumber)
+		default:
+			time.Sleep(time.Second * 10)
+		}
 	}
 }
 

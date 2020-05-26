@@ -18,7 +18,7 @@ func (s *DummySaver) SaveTransactionList(transactionList []Transaction) (int64, 
 	if !s.done && len(transactionList) == 11 {
 		marshal, _ := json.Marshal(transactionList)
 		log.Infof("%v", string(marshal))
-		s.done = true
 	}
-	return int64(len(transactionList)), nil
+	effects := int64(len(transactionList))
+	return effects, nil
 }

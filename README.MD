@@ -26,6 +26,12 @@ scan all ether transaction from geth
 
 ### 编译
 
+    # 修改三个参数配置　　参考https://github.com/olebedev/go-duktape/pull/58/files
+    vim /home/heipacker/golib/pkg/mod/gopkg.in/olebedev/go-duktape.v3@v3.0.0-20200316214253-d7b0ff38cac9/duk_config.h
+    #define DUK_USE_JSON_DEC_RECLIMIT 16384
+    #define DUK_USE_JSON_ENC_RECLIMIT 16384
+    #define DUK_USE_NATIVE_CALL_RECLIMIT 16384
+    
     make
 
 

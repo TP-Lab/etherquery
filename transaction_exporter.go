@@ -151,7 +151,6 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		return 0, nil
 	}
 
-	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
 	signer := types.MakeSigner(s.chainConfig, block.Number())
 
 	var transactionList []Transaction
@@ -249,18 +248,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 			}
 		}
 
-		tracerType := "callTracer"
-		traceConfig := &eth.TraceConfig{
-			Tracer: &tracerType,
-			LogConfig: &vm.LogConfig{
-				DisableMemory:  false,
-				DisableStack:   false,
-				DisableStorage: false,
-			},
-			Timeout: &s.appConfig.Timeout,
-			Reexec:  &s.appConfig.Reexec,
-		}
-		rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
+		rawMessageInterface, err := s.traceTransaction(tx)
 		if err != nil {
 			log.Errorf("trace transaction %v error %v", tx.Hash().String(), err)
 		} else {
@@ -275,7 +263,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 						transaction.OpCode = jsonParsed.Path("type").String()
 					}
 					if jsonParsed.ExistsP("calls") {
-						log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+						log.Debugf("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
 						internalIndex := transaction.InternalIndex
 						children, _ := jsonParsed.S("calls").Children()
 						for i, child := range children {
@@ -290,6 +278,28 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		transactionList = append(transactionList, transaction)
 	}
 	return s.saver.SaveTransactionList(transactionList)
+}
+
+func (s *TransactionExporter) traceTransaction(tx *types.Transaction) (interface{}, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("捕获异常:", err)
+		}
+	}()
+	privateDebugAPI := eth.NewPrivateDebugAPI(s.ethereum)
+	tracerType := "callTracer"
+	traceConfig := &eth.TraceConfig{
+		Tracer: &tracerType,
+		LogConfig: &vm.LogConfig{
+			DisableMemory:  false,
+			DisableStack:   false,
+			DisableStorage: false,
+		},
+		Timeout: &s.appConfig.Timeout,
+		Reexec:  &s.appConfig.Reexec,
+	}
+	rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
+	return rawMessageInterface, err
 }
 
 func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
