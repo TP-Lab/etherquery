@@ -26,3 +26,12 @@ func TestUnmarshalRawMessage(t *testing.T) {
 	json.Unmarshal([]byte(jsonStr), &result)
 	fmt.Println(result)
 }
+
+func TestMarshalTransactionData(t *testing.T) {
+	transaction := Transaction{
+		Data: []byte("testjslta"),
+		Hash: "testjslta",
+	}
+	marshal, _ := json.Marshal(transaction)
+	fmt.Println(string(marshal))
+}
