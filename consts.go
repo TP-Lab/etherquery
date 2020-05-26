@@ -12,5 +12,6 @@ const TokenTypeToken uint64 = 1
 const TransactionStatusSuccess uint64 = 0
 const TransactionStatusFailed uint64 = 1
 const TransactionStatusPending uint64 = 2
+const TransactionStatusTimeout uint64 = 3
 
 var LogIndexDefault *big.Int = big.NewInt(-1)

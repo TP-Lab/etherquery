@@ -84,9 +84,9 @@ func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump 
 
 func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, error) {
 	signer := types.MakeSigner(s.chainConfig, big.NewInt(math.MaxInt64))
-	message, err := tx.AsMessage(signer)
+	fromAddress, err := types.Sender(signer, tx)
 	if err != nil {
-		log.Errorf("as message %v error %v", tx.Hash().String(), err)
+		log.Errorf("sender %v error %v", tx.Hash().String(), err)
 		return -1, err
 	}
 	toAddress := tx.To()
@@ -105,7 +105,7 @@ func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, err
 		TransactionIndex: *big.NewInt(int64(0)),
 		LogIndex:         *LogIndexDefault,
 		InternalIndex:    InternalIndexDefault,
-		From:             message.From().String(),
+		From:             fromAddress.String(),
 		To:               to,
 		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
@@ -159,9 +159,9 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 
 	var transactionList []Transaction
 	for i, tx := range block.Transactions() {
-		message, err := tx.AsMessage(signer)
+		fromAddress, err := types.Sender(signer, tx)
 		if err != nil {
-			log.Errorf("as message %v error %v", tx.Hash().String(), err)
+			log.Errorf("sender %v error %v", tx.Hash().String(), err)
 			return -1, err
 		}
 		toAddress := tx.To()
@@ -180,7 +180,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 			TransactionIndex: *big.NewInt(int64(i)),
 			LogIndex:         *LogIndexDefault,
 			InternalIndex:    InternalIndexDefault,
-			From:             message.From().String(),
+			From:             fromAddress.String(),
 			To:               to,
 			ContractAddress:  "",
 			TokenType:        TokenTypeDefault,
@@ -196,11 +196,6 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		}
 		s.parseTransactionTokenInfo(&transaction, &receiptsList)
 		if len(receiptsList) > 0 {
-			err := receiptsList.DeriveFields(s.chainConfig, tx.Hash(), block.NumberU64(), []*types.Transaction{tx})
-			if err != nil {
-				log.Errorf("derive fields error %v", err)
-				return -1, err
-			}
 			marshal1, _ := json.Marshal(receiptsList)
 			log.Infof("receiptsList %v, %v", tx.Hash().String(), string(marshal1))
 			for _, receipt := range receiptsList {
@@ -224,7 +219,7 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 						UsedGas:   *big.NewInt(int64(receipt.GasUsed)),
 						Hash:      tx.Hash().String(),
 						Nonce:     tx.Nonce(),
-						From:      message.From().String(),
+						From:      fromAddress.String(),
 						To:        to,
 						Status:    receipt.Status,
 					}
@@ -266,6 +261,10 @@ func (s *TransactionExporter) ExportBlock(block *types.Block) (int64, error) {
 		rawMessageInterface, err := privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), traceConfig)
 		if err != nil {
 			log.Errorf("trace transaction %v error %v", tx.Hash().String(), err)
+			//设置超时状态
+			if strings.Contains(err.Error(), "execution timeout") {
+				transaction.Status = TransactionStatusTimeout
+			}
 		} else {
 			if rawMessageInterface != nil {
 				rawMessage := rawMessageInterface.(json.RawMessage)
