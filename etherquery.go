@@ -100,7 +100,7 @@ func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 			} else {
 				effects, _ = s.exporter.ExportBlock(block)
 			}
-			log.Infof("goroutine %v processing block %v, effects %v, %vms @%v...", index, blockNumber, effects, (time.Now().UnixNano()-startTime)/10e6, time.Unix(int64(block.Time()), 0))
+			log.Infof("goroutine %v processing block %v effects %v %vms @%v...", index, blockNumber, effects, (time.Now().UnixNano()-startTime)/10e6, time.Unix(int64(block.Time()), 0))
 			s.putLastBlock(blockNumber)
 		default:
 			time.Sleep(time.Second * 10)

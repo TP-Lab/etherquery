@@ -164,7 +164,7 @@ func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction
 				contractAddress := (*receipt)[0].ContractAddress.String()
 				if contractAddress != transaction.ContractAddress {
 					transaction.ContractAddress = contractAddress
-					log.Warnf("transaction %v, to %v not equal contract address of receipt %v", transaction.Hash, transaction.To, contractAddress)
+					log.Warnf("transaction %v to %v not equal contract address of receipt %v", transaction.Hash, transaction.To, contractAddress)
 				}
 			}
 		}
@@ -248,7 +248,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 	}
 	if len(receiptsList) > 0 {
 		marshal1, _ := json.Marshal(receiptsList)
-		log.Infof("receiptsList %v, %v", tx.Hash().String(), string(marshal1))
+		log.Infof("receiptsList %v %v", tx.Hash().String(), string(marshal1))
 		for _, receipt := range receiptsList {
 			transaction.Status = receipt.Status
 
@@ -330,7 +330,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 					}
 				}
 				if jsonParsed.ExistsP("calls") {
-					log.Debugf("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+					log.Debugf("rawMessage %v %v", tx.Hash().String(), jsonParsed.String())
 					internalIndex := transaction.InternalIndex
 					children, _ := jsonParsed.S("calls").Children()
 					var internalTransactionList = list.New()
