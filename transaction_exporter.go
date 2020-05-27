@@ -316,7 +316,10 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 			} else {
 				//标记当前交易是什么op code
 				if jsonParsed.ExistsP("type") {
-					transaction.OpCode = jsonParsed.Path("type").String()
+					typeData := jsonParsed.Path("type").Data()
+					if typeData != nil {
+						transaction.OpCode = typeData.(string)
+					}
 				}
 				if jsonParsed.ExistsP("calls") {
 					log.Debugf("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
@@ -354,9 +357,18 @@ func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransa
 	}
 	//丢弃value=0的合约调用
 	if transaction.Value.Uint64() > 0 {
-		transaction.From = jsonParsed.Path("from").String()
-		transaction.To = jsonParsed.Path("to").String()
-		transaction.OpCode = jsonParsed.Path("type").String()
+		fromData := jsonParsed.Path("from").Data()
+		if fromData != nil {
+			transaction.From = fromData.(string)
+		}
+		toData := jsonParsed.Path("to").Data()
+		if toData != nil {
+			transaction.To = toData.(string)
+		}
+		typeData := jsonParsed.Path("type").Data()
+		if typeData != nil {
+			transaction.OpCode = typeData.(string)
+		}
 		gasData := jsonParsed.Path("gas").Data()
 		if gasData != nil {
 			transaction.Gas.UnmarshalJSON([]byte(gasData.(string)))
@@ -365,10 +377,13 @@ func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransa
 		if gasUsedData != nil {
 			transaction.UsedGas.UnmarshalJSON([]byte(gasUsedData.(string)))
 		}
-		transaction.Data = jsonParsed.Path("input").Bytes()
+		inputData := jsonParsed.Path("input").Data()
+		if inputData != nil {
+			transaction.Data = []byte(inputData.(string))
+		}
 
 		if jsonParsed.Exists("error") {
-			transaction.Err = jsonParsed.Path("error").String()
+			transaction.Err = jsonParsed.Path("error").Data().(string)
 			if transaction.Err != "" {
 				transaction.Status = TransactionStatusFailed
 			}
