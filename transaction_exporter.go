@@ -323,7 +323,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 					}
 				}
 				if jsonParsed.ExistsP("calls") {
-					log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+					log.Debugf("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
 					internalIndex := transaction.InternalIndex
 					children, _ := jsonParsed.S("calls").Children()
 					var internalTransactionList = list.New()
