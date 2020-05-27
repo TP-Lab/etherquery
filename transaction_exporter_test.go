@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"testing"
 )
@@ -34,4 +35,9 @@ func TestMarshalTransactionData(t *testing.T) {
 	}
 	marshal, _ := json.Marshal(transaction)
 	fmt.Println(string(marshal))
+}
+
+func TestParseData(t *testing.T) {
+	data := []byte("qQWcuwAAAAAAAAAAAAAAAF1VdouitMqepvJVdy+RfMjKQ72OAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFxe3LwpAAA=")
+	fmt.Println(hexutil.Bytes(data))
 }

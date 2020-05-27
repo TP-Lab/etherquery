@@ -7,6 +7,7 @@ import (
 	"github.com/Jeffail/gabs"
 	log "github.com/cihub/seelog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -126,7 +127,7 @@ func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, err
 		To:               to,
 		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
-		Data:             tx.Data(),
+		Data:             hexutil.Bytes(tx.Data()),
 		Gas:              *big.NewInt(int64(tx.Gas())),
 		GasPrice:         *tx.GasPrice(),
 		UsedGas:          *big.NewInt(int64(tx.Gas())),
@@ -141,14 +142,14 @@ func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction
 	if transaction.Data == nil {
 		return transaction
 	}
-	input := transaction.Data
+	data := transaction.Data
 	// Function: transfer(address _to, uint256 _value)
 	// MethodID: 0xa9059cbb
 	// 0xa9059cbb000000000000000000000000
 	// [0]:00000000000000000000000075186ece18d7051afb9c1aee85170c0deda23d82
 	// [1]:0000000000000000000000000000000000000000000000364db9fbe6a7902000
-	if len(input) > 74 && string(input[:10]) == "0xa9059cbb" {
-		//tx.MethodId = string(input[:10])
+	if len(data) > 74 && string(data[:10]) == "0xa9059cbb" {
+		//tx.MethodId = string(data[:10])
 		transaction.ContractAddress = transaction.To
 		if receipt != nil {
 			if len(*receipt) > 0 {
@@ -159,8 +160,8 @@ func (s *TransactionExporter) parseTransactionTokenInfo(transaction *Transaction
 				}
 			}
 		}
-		transaction.To = string(append([]byte{'0', 'x'}, input[34:74]...))
-		transaction.TokenValue.UnmarshalJSON(append([]byte{'0', 'x'}, input[74:]...))
+		transaction.To = string(append([]byte{'0', 'x'}, data[34:74]...))
+		transaction.TokenValue.UnmarshalJSON(append([]byte{'0', 'x'}, data[74:]...))
 		transaction.TokenType = TokenTypeToken
 	}
 	return transaction
@@ -222,7 +223,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 		To:               to,
 		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
-		Data:             tx.Data(),
+		Data:             hexutil.Bytes(tx.Data()),
 		Gas:              *big.NewInt(int64(tx.Gas())),
 		GasPrice:         *tx.GasPrice(),
 		UsedGas:          *big.NewInt(int64(tx.Gas())),
@@ -314,7 +315,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 				log.Errorf("parse json %v error %v", string(rawMessage), err)
 			} else {
 				//标记当前交易是什么op code
-				if !jsonParsed.ExistsP("type") {
+				if jsonParsed.ExistsP("type") {
 					transaction.OpCode = jsonParsed.Path("type").String()
 				}
 				if jsonParsed.ExistsP("calls") {
