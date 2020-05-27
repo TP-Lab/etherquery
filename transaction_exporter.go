@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -127,7 +128,7 @@ func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, err
 		To:               to,
 		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
-		Data:             hexutil.Bytes(tx.Data()),
+		Data:             []byte(hexutil.Encode(tx.Data())),
 		Gas:              *big.NewInt(int64(tx.Gas())),
 		GasPrice:         *tx.GasPrice(),
 		UsedGas:          *big.NewInt(int64(tx.Gas())),
@@ -223,7 +224,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 		To:               to,
 		ContractAddress:  "",
 		TokenType:        TokenTypeDefault,
-		Data:             hexutil.Bytes(tx.Data()),
+		Data:             []byte(hexutil.Encode(tx.Data())),
 		Gas:              *big.NewInt(int64(tx.Gas())),
 		GasPrice:         *tx.GasPrice(),
 		UsedGas:          *big.NewInt(int64(tx.Gas())),
@@ -322,12 +323,16 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 					}
 				}
 				if jsonParsed.ExistsP("calls") {
-					log.Debugf("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
+					log.Infof("rawMessage %v, %v", tx.Hash().String(), jsonParsed.String())
 					internalIndex := transaction.InternalIndex
 					children, _ := jsonParsed.S("calls").Children()
+					var internalTransactionList = list.New()
 					for i, child := range children {
 						newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
-						s.parseRawMessage(newInternalIndex, transaction, block, tx, child, transactionList)
+						s.parseRawMessage(newInternalIndex, transaction, block, tx, child, internalTransactionList)
+					}
+					for element := internalTransactionList.Front(); element != nil; element = element.Next() {
+						transactionList = append(transactionList, element.Value.(Transaction))
 					}
 				}
 			}
@@ -338,7 +343,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 	return transactionList, nil
 }
 
-func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, transactionList []Transaction) {
+func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransaction Transaction, block *types.Block, tx *types.Transaction, jsonParsed *gabs.Container, internalTransactionList *list.List) {
 	transaction := Transaction{
 		Timestamp:        *big.NewInt(int64(block.Time())),
 		BlockNumber:      *block.Number(),
@@ -390,13 +395,13 @@ func (s *TransactionExporter) parseRawMessage(internalIndex string, parentTransa
 		}
 		transaction.InternalIndex = internalIndex
 
-		transactionList = append(transactionList, transaction)
+		internalTransactionList.PushBack(transaction)
 	}
 	if jsonParsed.ExistsP("calls") {
 		children, _ := jsonParsed.S("calls").Children()
-		for i, child := range children {
-			newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, i)
-			s.parseRawMessage(newInternalIndex, transaction, block, tx, child, transactionList)
+		for index, child := range children {
+			newInternalIndex := fmt.Sprintf("%v_%v", internalIndex, index)
+			s.parseRawMessage(newInternalIndex, transaction, block, tx, child, internalTransactionList)
 		}
 	}
 }
