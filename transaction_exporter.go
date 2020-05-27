@@ -291,7 +291,7 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 		defer func() {
 			elapse := (time.Now().UnixNano() - startTime) / 10e6
 			if elapse > 500 {
-				log.Infof("trace transaction %v elapse time %vms", tx.Hash(), elapse)
+				log.Infof("trace transaction %v elapse time %vms", tx.Hash().String(), elapse)
 			}
 		}()
 		rawMessageInterface, err = s.privateDebugAPI.TraceTransaction(context.Background(), tx.Hash(), s.traceConfig)
