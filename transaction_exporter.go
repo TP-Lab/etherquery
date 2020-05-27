@@ -232,7 +232,11 @@ func (s *TransactionExporter) processTx(signer types.Signer, block *types.Block,
 	if err != nil {
 		log.Errorf("get receipts by %v error %v", tx.Hash().String(), err)
 	}
-	s.parseTransactionTokenInfo(&transaction, &receiptsList)
+	if receiptsList == nil {
+		s.parseTransactionTokenInfo(&transaction, nil)
+	} else {
+		s.parseTransactionTokenInfo(&transaction, &receiptsList)
+	}
 	if len(receiptsList) > 0 {
 		marshal1, _ := json.Marshal(receiptsList)
 		log.Infof("receiptsList %v, %v", tx.Hash().String(), string(marshal1))
