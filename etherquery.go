@@ -19,13 +19,14 @@ import (
 )
 
 type EtherQuery struct {
-	appConfig         *AppConfig
-	exporter          *TransactionExporter
-	customDatabase    ethdb.Database
-	ethereum          *eth.Ethereum
-	chainHeadEventSub event.Subscription
-	newTxEventSub     event.Subscription
-	server            *p2p.Server
+	appConfig           *AppConfig
+	exporter            *TransactionExporter
+	customDatabase      ethdb.Database
+	ethereum            *eth.Ethereum
+	chainHeadEventSub   event.Subscription
+	newTxEventSub       event.Subscription
+	removedLogsEventSub event.Subscription
+	server              *p2p.Server
 }
 
 func NewEtherQuery(appConfig *AppConfig, ctx *node.ServiceContext) (node.Service, error) {
@@ -64,6 +65,15 @@ func (s *EtherQuery) processTxs(ch <-chan *types.Transaction) {
 			continue
 		}
 		s.exporter.ExportPendingTx(tx)
+	}
+}
+
+func (s *EtherQuery) processLogs(ch <-chan *types.Log) {
+	for log1 := range ch {
+		if log1 == nil {
+			continue
+		}
+		s.exporter.ExportRemovedLogs(log1)
 	}
 }
 
@@ -157,6 +167,9 @@ func (s *EtherQuery) consumeBlocks() {
 	txs := make(chan *types.Transaction, s.appConfig.TxsChannelSize)
 	go s.processTxs(txs)
 
+	logs := make(chan *types.Log, s.appConfig.TxsChannelSize)
+	go s.processLogs(logs)
+
 	go func() {
 		for {
 			log.Infof("blocks size %v, txs size %v", len(blocks), len(txs))
@@ -183,6 +196,10 @@ func (s *EtherQuery) consumeBlocks() {
 	s.newTxEventSub = s.ethereum.TxPool().SubscribeNewTxsEvent(txEventCh)
 	defer s.newTxEventSub.Unsubscribe()
 
+	removedLogsEventCh := make(chan core.RemovedLogsEvent, s.appConfig.RemovedLogsEventChannelSize)
+	s.removedLogsEventSub = s.ethereum.BlockChain().SubscribeRemovedLogsEvent(removedLogsEventCh)
+	defer s.removedLogsEventSub.Unsubscribe()
+
 HandleLoop:
 	for {
 		select {
@@ -198,11 +215,19 @@ HandleLoop:
 			for _, tx := range transactions {
 				txs <- tx
 			}
+		case v := <-removedLogsEventCh:
+			logList := v.Logs
+			for _, log1 := range logList {
+				logs <- log1
+			}
 		case err := <-s.chainHeadEventSub.Err():
 			log.Errorf("chain head event receive error %v", err)
 			break HandleLoop
 		case err := <-s.newTxEventSub.Err():
 			log.Errorf("tx receive error %v", err)
+			break HandleLoop
+		case err := <-s.removedLogsEventSub.Err():
+			log.Errorf("removed logs receive error %v", err)
 			break HandleLoop
 		}
 	}

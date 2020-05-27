@@ -101,6 +101,13 @@ func (s *TransactionExporter) ExportGenesisBlocks(block *types.Block, stateDump 
 	return s.saver.SaveTransactionList(transactionList)
 }
 
+//todo 完善逻辑
+func (s *TransactionExporter) ExportRemovedLogs(log1 *types.Log) (int64, error) {
+	marshal, _ := json.Marshal(log1)
+	log.Warnf("%v", string(marshal))
+	return 0, nil
+}
+
 func (s *TransactionExporter) ExportPendingTx(tx *types.Transaction) (int64, error) {
 	signer := types.MakeSigner(s.chainConfig, big.NewInt(math.MaxInt64))
 	fromAddress, err := types.Sender(signer, tx)

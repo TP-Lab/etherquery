@@ -4,12 +4,14 @@ profile: dev
 blocksgoroutinesize: 6
 blockschannelsize: 32
 txschannelsize: 32
+logschannelsize: 16
 chainheadeventchannelsize: 10
 newtxseventchannelsize: 10
+removedlogseventchannelsize: 10
 timeout: '5s'
 reexec: 128
 # dummy, http, mongo
 saver: 'dummy'
 #saver: 'http'
-subscribeendpointlist: ['http://ethexp.tokenpocket.pro:8892']
+subscribeendpointlist: ['http://ethexp.tokenpocket.pro:8892/v1/eth_port']
 batchsize: 12
