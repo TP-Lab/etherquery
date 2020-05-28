@@ -12,6 +12,7 @@ type AppConfig struct {
 	SubscribeEndpointList       []string `json:"subscribe_endpoint_list"`
 	Timeout                     string   `json:"timeout"`
 	Reexec                      uint64   `json:"reexec"`
+	StartBlock                  uint64   `json:"start_block"`
 	Saver                       string   `json:"saver"`
 	BatchSize                   uint64   `json:"batch_size"`
 }

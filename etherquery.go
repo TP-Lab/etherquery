@@ -87,6 +87,9 @@ func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 			var effects int64 = 0
 			var startTime = time.Now().UnixNano()
 			blockNumber := block.Number().Uint64()
+			if blockNumber < s.appConfig.StartBlock {
+				continue
+			}
 			if blockNumber == 0 {
 				root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
 				chainDb := s.ethereum.BlockChain().StateCache()
