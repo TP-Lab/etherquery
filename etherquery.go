@@ -87,23 +87,25 @@ func (s *EtherQuery) processBlocks(index int64, ch <-chan *types.Block) {
 			var effects int64 = 0
 			var startTime = time.Now().UnixNano()
 			blockNumber := block.Number().Uint64()
-			if blockNumber == 0 {
-				root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
-				chainDb := s.ethereum.BlockChain().StateCache()
-				snapshot := s.ethereum.BlockChain().Snapshot()
-				stateDB, err := state.New(root, chainDb, snapshot)
-				if err != nil {
-					log.Errorf("Failed to get state DB for genesis Block: %v", err)
+			if blockNumber >= s.appConfig.StartBlock {
+				if blockNumber == 0 {
+					root := s.ethereum.BlockChain().GetBlockByHash(block.Hash()).Root()
+					chainDb := s.ethereum.BlockChain().StateCache()
+					snapshot := s.ethereum.BlockChain().Snapshot()
+					stateDB, err := state.New(root, chainDb, snapshot)
+					if err != nil {
+						log.Errorf("Failed to get state DB for genesis Block: %v", err)
+					}
+					world := stateDB.RawDump(false, false, true)
+					effects, _ = s.exporter.ExportGenesisBlocks(block, world)
+				} else {
+					effects, _ = s.exporter.ExportBlock(block)
 				}
-				world := stateDB.RawDump(false, false, true)
-				effects, _ = s.exporter.ExportGenesisBlocks(block, world)
-			} else {
-				effects, _ = s.exporter.ExportBlock(block)
 			}
 			log.Infof("goroutine %v processing block %v effects %v %vms @%v...", index, blockNumber, effects, (time.Now().UnixNano()-startTime)/10e6, time.Unix(int64(block.Time()), 0))
 			s.putLastBlock(blockNumber)
 		default:
-			time.Sleep(time.Second * 10)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }

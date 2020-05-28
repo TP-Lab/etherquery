@@ -10,6 +10,7 @@ newtxseventchannelsize: 10
 removedlogseventchannelsize: 10
 timeout: '5s'
 reexec: 128
+startblock: 7000000
 # dummy, http, mongo
 saver: 'dummy'
 #saver: 'http'
