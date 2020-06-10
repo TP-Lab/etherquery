@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	log "github.com/cihub/seelog"
+	"strings"
 
 	"time"
 
@@ -137,7 +138,9 @@ func (s *EtherQuery) putInt(key string, value uint64) error {
 func (s *EtherQuery) getLastBlock() uint64 {
 	dataVersion, err := s.getInt("dataVersion")
 	if err != nil {
-		log.Errorf("get data version error %v", err)
+		if !strings.Contains(err.Error(), "not found") {
+			log.Errorf("get data version error %v", err)
+		}
 		s.putInt("dataVersion", DataVersion)
 		s.putInt("lastBlock", 0)
 		return 0
