@@ -7,5 +7,5 @@ import (
 )
 
 func TestStringToNumber(t *testing.T) {
-	fmt.Println(hexutil.DecodeBig("0x9c2f8b"))
+	fmt.Println(hexutil.DecodeBig("0x9cba92"))
 }

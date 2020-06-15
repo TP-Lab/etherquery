@@ -192,6 +192,19 @@ func (s *EtherQuery) consumeBlocks() {
 		lastBlock += 1
 	}
 
+	go func() {
+		for {
+			progress := s.ethereum.Downloader().Progress()
+			currentBlock := progress.CurrentBlock
+			log.Infof("current block number %v, last block %v", currentBlock, lastBlock)
+			for lastBlock < currentBlock {
+				blocks <- chain.GetBlockByNumber(lastBlock)
+				lastBlock += 1
+			}
+
+			time.Sleep(time.Second * 5)
+		}
+	}()
 	log.Info("Caught up; subscribing to new blocks.")
 	var headCh = make(chan core.ChainHeadEvent, s.appConfig.ChainHeadEventChannelSize)
 	s.chainHeadEventSub = s.ethereum.BlockChain().SubscribeChainHeadEvent(headCh)
